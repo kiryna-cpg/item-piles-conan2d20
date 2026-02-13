@@ -2,44 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.0.6] - 2026-02-13
+## [0.0.7] - 2026-02-13
 ### Fixed
-- Automatic first-run setup is now more reliable when Item Piles is freshly installed/enabled as a dependency. The companion now waits for Item Piles settings to be registered before applying recommended configuration.
+- If this world has previously been set up by the companion but Item Piles settings were later reset/changed, the companion now detects the mismatch on load and automatically re-applies the recommended defaults (with a warning notification).
 
-## [0.0.5] - 2026-02-13
-### Changed
-- Changelog entries are now ordered newest-first.
-- Module Settings menu button label updated from “Open” to “Open Reset Configuration”.
-
-## [0.0.4] - 2026-02-13
-### Fixed
-- Fixed Item Filters format to match Item Piles 3.x expectations (comma-separated string). This resolves errors when dropping items onto the canvas.
+## [0.0.2] - 2026-02-12
 ### Added
-- Applied default Item class types in Item Piles settings:
-  - Loot: `miscellaneous`
-  - Weapon: `weapon`
-  - Equipment: `armor`
-
-## [0.0.3] - 2026-02-13
-### Changed
-- Default currency definition updated to match Conan conventions:
-  - Name: "Gold Pieces"
-  - Abbreviation: "{#}G"
-  - Icon: `icons/commodities/currency/coin-embossed-cobra-gold.webp`
-  - Data path: `system.resources.gold.value`
-
-## [0.0.2] - 2026-02-13
-### Added
-- Enforced item type allowlist via Item Piles “Item Filters”: only `weapon`, `armor`, `miscellaneous`, `kit` are allowed by default.
-- Sorcery trade options in Module Settings:
-  - Allow trading Spells
-  - Allow trading Enchantments
-  (Both are non-stackable and must be priced manually per-merchant item configuration.)
-### Changed
-- Reset dialog reflects the new sorcery trade options.
-
-## [0.0.1] - 2026-02-13
-### Added
-- Initial module skeleton for Conan 2d20.
-- One-time recommended Item Piles setup (currency, item quantity/price attributes, pile actor type).
+- Manifest + release download support for Foundry installation.
 - World Settings menu: “Reset Recommended Settings”.
+- Safe one-time setup (does not overwrite manual Item Piles settings after initial setup).
+
+### Changed
+- Uses attribute currency configuration for Pepitas: `system.pips.value`.
+- Default configuration tuned for slot-based inventory (no stacking).
+
+## [0.0.1] - 2026-02-12
+### Added
+- Initial companion module with Mausritter-specific Item Piles settings.

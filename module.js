@@ -1,13 +1,8 @@
 /* Item Piles: Conan 2d20
  * Companion module for Robert E. Howard's Conan: Adventures in an Age Undreamed Of (Foundry system: conan2d20)
- *
- * Goals (v0.x):
- * - Apply a sensible, Conan-specific Item Piles configuration (once per world, unless reset).
- * - Provide a World Settings menu to re-apply the recommended configuration.
- * - Provide a toggle to allow trading "magic" items (spell/enchantment) later (handled in future versions).
  */
 
-console.log("Item Piles: Conan 2d20 | module.js loaded", { version: "0.0.6", time: Date.now() });
+console.log("Item Piles: Conan 2d20 | module.js loaded", { version: "0.0.7", time: Date.now() });
 
 const MODULE_ID = "item-piles-conan2d20";
 
@@ -118,11 +113,76 @@ function recommendedItemPilesSettings() {
   };
 }
 
+function normalizeFilterList(filtersString) {
+  if (typeof filtersString !== "string") return [];
+  return filtersString
+    .split(",")
+    .map((s) => (typeof s === "string" ? s.trim() : ""))
+    .filter((s) => s.length);
+}
+
+function hasGoldCurrency(currencies) {
+  if (!Array.isArray(currencies)) return false;
+  return currencies.some((c) => {
+    return (
+      c?.type === "attribute" &&
+      c?.data?.path === "system.resources.gold.value"
+    );
+  });
+}
+
+function isRecommendedConfigApplied() {
+  // Check a minimal set of "load-bearing" settings. If any are missing or mismatched,
+  // we consider Item Piles not configured for Conan 2d20.
+  try {
+    if (!game.settings?.settings?.has("item-piles.actorClassType")) return false;
+
+    const rec = recommendedItemPilesSettings();
+
+    const actorOk = game.settings.get("item-piles", "actorClassType") === rec.actorClassType;
+    const lootOk = game.settings.get("item-piles", "itemClassLootType") === rec.itemClassLootType;
+    const weaponOk = game.settings.get("item-piles", "itemClassWeaponType") === rec.itemClassWeaponType;
+    const equipOk = game.settings.get("item-piles", "itemClassEquipmentType") === rec.itemClassEquipmentType;
+
+    const priceOk = game.settings.get("item-piles", "itemPriceAttribute") === rec.itemPriceAttribute;
+    const qtyOk = game.settings.get("item-piles", "itemQuantityAttribute") === rec.itemQuantityAttribute;
+
+    const currencies = game.settings.get("item-piles", "currencies") ?? [];
+    const currencyOk = hasGoldCurrency(currencies);
+
+    const filters = game.settings.get("item-piles", "itemFilters") ?? [];
+    const expectedExcluded = new Set(normalizeFilterList(rec.itemFilters?.[0]?.filters));
+    const filterEntry = Array.isArray(filters) ? filters.find((f) => f?.path === "type") : null;
+    const currentExcluded = new Set(normalizeFilterList(filterEntry?.filters));
+
+    const filtersOk =
+      filterEntry?.path === "type" &&
+      expectedExcluded.size > 0 &&
+      expectedExcluded.size === currentExcluded.size &&
+      [...expectedExcluded].every((t) => currentExcluded.has(t));
+
+    return actorOk && lootOk && weaponOk && equipOk && priceOk && qtyOk && currencyOk && filtersOk;
+  } catch (e) {
+    return false;
+  }
+}
+
+
 async function applyRecommendedSettings({ force = false } = {}) {
   if (game.system.id !== "conan2d20") return;
 
-  // Only apply once unless forced
-  if (!force && getSettingSafe("setupDone", false)) return;
+  // Only apply once unless forced.
+  // However, if the setup flag is set but Item Piles is not actually configured as expected
+  // (e.g. the user reset Item Piles settings manually), we will re-apply the recommended config.
+  if (!force && getSettingSafe("setupDone", false)) {
+    const ok = isRecommendedConfigApplied();
+    if (ok) return;
+
+    const msg =
+      "Item Piles: Conan 2d20 | Detected Item Piles is not configured for Conan 2d20. Re-applying recommended defaults.";
+    console.warn(msg);
+    ui?.notifications?.warn("Item Piles: Conan 2d20 detected Item Piles is not configured correctly and re-applied the recommended defaults.");
+  }
 
   const rec = recommendedItemPilesSettings();
 
@@ -178,35 +238,6 @@ async function applyTypeFiltersOnly() {
   unstackable.add("spell");
   unstackable.add("enchantment");
   await game.settings.set("item-piles", "unstackableItemTypes", Array.from(unstackable));
-}
-
-/**
- * On worlds where Item Piles is freshly installed/enabled as a dependency, there are edge-cases
- * where this companion's `ready` hook can run before Item Piles has registered all of its settings.
- * In that situation, applying configuration is a no-op and the user has to click Reset manually.
- *
- * This helper waits briefly until the core Item Piles settings exist before applying.
- */
-async function waitForItemPilesSettings({ timeoutMs = 8000 } = {}) {
-  const required = [
-    "item-piles.actorClassType",
-    "item-piles.itemPriceAttribute",
-    "item-piles.itemQuantityAttribute",
-    "item-piles.currencies",
-    "item-piles.itemFilters"
-  ];
-
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    const ok = required.every((k) => game.settings?.settings?.has(k));
-    if (ok) return true;
-    await new Promise((r) => setTimeout(r, 250));
-  }
-
-  console.warn(
-    "Item Piles: Conan 2d20 | Timed out waiting for Item Piles settings. Recommended setup may require manual reset."
-  );
-  return false;
 }
 
 Hooks.once("init", () => {
@@ -298,8 +329,6 @@ Hooks.once("init", () => {
 
 // One-time setup after everything is ready
 Hooks.once("ready", async () => {
-  // Make sure Item Piles has registered its settings before applying.
-  await waitForItemPilesSettings();
   await applyRecommendedSettings({ force: false });
   console.log("Item Piles: Conan 2d20 | ready");
 });
