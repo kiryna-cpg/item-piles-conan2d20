@@ -2,9 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.6] - 2026-02-13
+### Fixed
+- Automatic first-run setup is now more reliable when Item Piles is freshly installed/enabled as a dependency. The companion now waits for Item Piles settings to be registered before applying recommended configuration.
+
 ## [0.0.5] - 2026-02-13
 ### Changed
-- Minor UI changes.
+- Changelog entries are now ordered newest-first.
+- Module Settings menu button label updated from “Open” to “Open Reset Configuration”.
 
 ## [0.0.4] - 2026-02-13
 ### Fixed

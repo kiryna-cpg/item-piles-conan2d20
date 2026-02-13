@@ -1,8 +1,13 @@
 /* Item Piles: Conan 2d20
  * Companion module for Robert E. Howard's Conan: Adventures in an Age Undreamed Of (Foundry system: conan2d20)
+ *
+ * Goals (v0.x):
+ * - Apply a sensible, Conan-specific Item Piles configuration (once per world, unless reset).
+ * - Provide a World Settings menu to re-apply the recommended configuration.
+ * - Provide a toggle to allow trading "magic" items (spell/enchantment) later (handled in future versions).
  */
 
-console.log("Item Piles: Conan 2d20 | module.js loaded", { version: "0.0.5", time: Date.now() });
+console.log("Item Piles: Conan 2d20 | module.js loaded", { version: "0.0.6", time: Date.now() });
 
 const MODULE_ID = "item-piles-conan2d20";
 
@@ -87,7 +92,7 @@ function recommendedItemPilesSettings() {
     itemQuantityAttribute: "system.quantity",
     itemPriceAttribute: "system.cost",
 
-    // Currency: Pieces of Gold (stored as an object {min,max,value} in the system)
+    // Currency: Gold (stored as an object {min,max,value} in the system)
     currencies: [
       {
         type: "attribute",
@@ -173,6 +178,35 @@ async function applyTypeFiltersOnly() {
   unstackable.add("spell");
   unstackable.add("enchantment");
   await game.settings.set("item-piles", "unstackableItemTypes", Array.from(unstackable));
+}
+
+/**
+ * On worlds where Item Piles is freshly installed/enabled as a dependency, there are edge-cases
+ * where this companion's `ready` hook can run before Item Piles has registered all of its settings.
+ * In that situation, applying configuration is a no-op and the user has to click Reset manually.
+ *
+ * This helper waits briefly until the core Item Piles settings exist before applying.
+ */
+async function waitForItemPilesSettings({ timeoutMs = 8000 } = {}) {
+  const required = [
+    "item-piles.actorClassType",
+    "item-piles.itemPriceAttribute",
+    "item-piles.itemQuantityAttribute",
+    "item-piles.currencies",
+    "item-piles.itemFilters"
+  ];
+
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const ok = required.every((k) => game.settings?.settings?.has(k));
+    if (ok) return true;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+
+  console.warn(
+    "Item Piles: Conan 2d20 | Timed out waiting for Item Piles settings. Recommended setup may require manual reset."
+  );
+  return false;
 }
 
 Hooks.once("init", () => {
@@ -264,6 +298,8 @@ Hooks.once("init", () => {
 
 // One-time setup after everything is ready
 Hooks.once("ready", async () => {
+  // Make sure Item Piles has registered its settings before applying.
+  await waitForItemPilesSettings();
   await applyRecommendedSettings({ force: false });
   console.log("Item Piles: Conan 2d20 | ready");
 });
