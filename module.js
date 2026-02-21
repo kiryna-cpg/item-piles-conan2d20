@@ -1,360 +1,334 @@
-/**
- * Conan 2d20 - Reach Status
- * Foundry VTT module for the Conan 2d20 system.
+/* Item Piles: Conan 2d20
+ * Companion module for Robert E. Howard's Conan: Adventures in an Age Undreamed Of (Foundry system: conan2d20)
  */
 
-const MODULE_ID = "conan2d20-reach-status";
-const MAX_REACH = 3;
+console.log("Item Piles: Conan 2d20 | module.js loaded", { version: "0.0.7", time: Date.now() });
 
-// Status IDs
-const NO_REACH_ID = "conan-no-reach";
-const REACH_IDS = Array.from({ length: MAX_REACH }, (_, i) => `conan-reach-${i + 1}`);
-const ALL_STATUS_IDS = [NO_REACH_ID, ...REACH_IDS];
+const MODULE_ID = "item-piles-conan2d20";
 
-// Manual override flags (stored on Actor for linked actors, or on TokenDocument for unlinked/synthetic actors)
-const FLAG_MANUAL_STATUS = "manualStatusId";
-const FLAG_MANUAL_MARKER = "manualSetViaHud";
+// Conan 2d20 item types (from system/template.json)
+const CONAN_ITEM_TYPES = [
+  "action",
+  "archetype",
+  "armor",
+  "aspect",
+  "caste",
+  "display",
+  "education",
+  "enchantment",
+  "homeland",
+  "kit",
+  "language",
+  "miscellaneous",
+  "nature",
+  "npcaction",
+  "npcattack",
+  "spell",
+  "story",
+  "talent",
+  "warstory",
+  "weapon"
+];
 
-let _enforcingExclusivity = false;
+const DEFAULT_ALLOWED_TYPES = new Set(["weapon", "armor", "miscellaneous", "kit"]);
 
-// Per-actor debouncers (keyed by actor.uuid)
-const _debouncers = new Map();
-
-const MODULE_PATH = new URL(".", import.meta.url).pathname
-  .replace(/^\/+/, "")
-  .replace(/\/$/, "");
-
-function clampNumber(value, min, max) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return min;
-  return Math.min(Math.max(n, min), max);
+function hasSetting(key) {
+  return game.settings?.settings?.has(`${MODULE_ID}.${key}`);
 }
 
-function isAuthoritativeForActor(actor) {
-  if (game.user.isGM) return true;
-  const anyActiveGM = game.users?.some(u => u.active && u.isGM);
-  if (anyActiveGM) return false;
-
-  return actor?.isOwner === true;
+function getSettingSafe(key, fallback) {
+  if (!hasSetting(key)) return fallback;
+  return game.settings.get(MODULE_ID, key);
 }
 
-function rerenderTokenHUD() {
-  try {
-    const hud = canvas?.hud?.token;
-    if (hud?.rendered) hud.render();
-  } catch (_) { /* no-op */ }
+async function setSettingSafe(key, value) {
+  if (!hasSetting(key)) return;
+  await game.settings.set(MODULE_ID, key, value);
 }
 
-function buildStatusEffects() {
-  const reachStatuses = Array.from({ length: MAX_REACH }, (_, i) => {
-    const n = i + 1;
-    return {
-      id: `conan-reach-${n}`,
-      name: `Reach ${n}`,
-      label: `Reach ${n}`,
-      img: `${MODULE_PATH}/icons/reach-${n}.webp`,
-      hud: true
-    };
-  });
+function getAllowedTypes() {
+  const allowed = new Set(DEFAULT_ALLOWED_TYPES);
+  if (getSettingSafe("allowSpellTrade", false)) allowed.add("spell");
+  if (getSettingSafe("allowEnchantmentTrade", false)) allowed.add("enchantment");
+  return allowed;
+}
 
-  const noReachStatus = {
-    id: NO_REACH_ID,
-    name: "No Reach",
-    label: "No Reach",
-    img: `${MODULE_PATH}/icons/no-reach.webp`,
-    hud: true
+function buildItemFilterExclusions(allowedTypes) {
+  // Item Piles' "Item Filters" setting is an exclusion list.
+  // We enforce an allowlist by excluding every other Conan item type.
+  return CONAN_ITEM_TYPES.filter((t) => !allowedTypes.has(t));
+}
+
+function buildItemFiltersSettingValue(excludedTypes) {
+  // Item Piles 3.x expects filters as a comma-separated string.
+  // cleanItemFilters() splits by comma and trims each entry.
+  return [
+    {
+      path: "type",
+      filters: excludedTypes.join(",")
+    }
+  ];
+}
+
+function recommendedItemPilesSettings() {
+  const allowedTypes = getAllowedTypes();
+  const excludedTypes = buildItemFilterExclusions(allowedTypes);
+
+  return {
+    // Actor type to use when Item Piles creates a default pile
+    actorClassType: "npc",
+
+    // Default item types used by Item Piles when categorizing items
+    itemClassLootType: "miscellaneous",
+    itemClassWeaponType: "weapon",
+    itemClassEquipmentType: "armor",
+
+    // Conan 2d20 "physical" items
+    itemQuantityAttribute: "system.quantity",
+    itemPriceAttribute: "system.cost",
+
+    // Currency: Gold (stored as an object {min,max,value} in the system)
+    currencies: [
+      {
+        type: "attribute",
+        name: "Gold Pieces",
+        primary: true,
+        img: "icons/commodities/currency/coin-embossed-cobra-gold.webp",
+        abbreviation: "{#}G",
+        exchangeRate: 1,
+        data: { path: "system.resources.gold.value" }
+      }
+    ],
+
+    // Sorcery items (when enabled) should NEVER stack
+    // (price must be set manually per-merchant item configuration)
+    unstackableItemTypes: ["spell", "enchantment"],
+
+    // Only allow a small set of item types to participate in pile/merchant/trade flows.
+    // Item Piles expresses this as a blacklist.
+    itemFilters: buildItemFiltersSettingValue(excludedTypes),
+
+    // Avoid "merging" items by similarity across systems with complex data
+    itemSimilarities: ["_id"]
   };
+}
 
-  return [...reachStatuses, noReachStatus];
+function normalizeFilterList(filtersString) {
+  if (typeof filtersString !== "string") return [];
+  return filtersString
+    .split(",")
+    .map((s) => (typeof s === "string" ? s.trim() : ""))
+    .filter((s) => s.length);
+}
+
+function hasGoldCurrency(currencies) {
+  if (!Array.isArray(currencies)) return false;
+  return currencies.some((c) => {
+    return (
+      c?.type === "attribute" &&
+      c?.data?.path === "system.resources.gold.value"
+    );
+  });
+}
+
+function isRecommendedConfigApplied() {
+  // Check a minimal set of "load-bearing" settings. If any are missing or mismatched,
+  // we consider Item Piles not configured for Conan 2d20.
+  try {
+    if (!game.settings?.settings?.has("item-piles.actorClassType")) return false;
+
+    const rec = recommendedItemPilesSettings();
+
+    const actorOk = game.settings.get("item-piles", "actorClassType") === rec.actorClassType;
+    const lootOk = game.settings.get("item-piles", "itemClassLootType") === rec.itemClassLootType;
+    const weaponOk = game.settings.get("item-piles", "itemClassWeaponType") === rec.itemClassWeaponType;
+    const equipOk = game.settings.get("item-piles", "itemClassEquipmentType") === rec.itemClassEquipmentType;
+
+    const priceOk = game.settings.get("item-piles", "itemPriceAttribute") === rec.itemPriceAttribute;
+    const qtyOk = game.settings.get("item-piles", "itemQuantityAttribute") === rec.itemQuantityAttribute;
+
+    const currencies = game.settings.get("item-piles", "currencies") ?? [];
+    const currencyOk = hasGoldCurrency(currencies);
+
+    const filters = game.settings.get("item-piles", "itemFilters") ?? [];
+    const expectedExcluded = new Set(normalizeFilterList(rec.itemFilters?.[0]?.filters));
+    const filterEntry = Array.isArray(filters) ? filters.find((f) => f?.path === "type") : null;
+    const currentExcluded = new Set(normalizeFilterList(filterEntry?.filters));
+
+    const filtersOk =
+      filterEntry?.path === "type" &&
+      expectedExcluded.size > 0 &&
+      expectedExcluded.size === currentExcluded.size &&
+      [...expectedExcluded].every((t) => currentExcluded.has(t));
+
+    return actorOk && lootOk && weaponOk && equipOk && priceOk && qtyOk && currencyOk && filtersOk;
+  } catch (e) {
+    return false;
+  }
+}
+
+
+async function applyRecommendedSettings({ force = false } = {}) {
+  if (game.system.id !== "conan2d20") return;
+
+  // Only apply once unless forced.
+  // However, if the setup flag is set but Item Piles is not actually configured as expected
+  // (e.g. the user reset Item Piles settings manually), we will re-apply the recommended config.
+  if (!force && getSettingSafe("setupDone", false)) {
+    const ok = isRecommendedConfigApplied();
+    if (ok) return;
+
+    const msg =
+      "Item Piles: Conan 2d20 | Detected Item Piles is not configured for Conan 2d20. Re-applying recommended defaults.";
+    console.warn(msg);
+    ui?.notifications?.warn("Item Piles: Conan 2d20 detected Item Piles is not configured correctly and re-applied the recommended defaults.");
+  }
+
+  const rec = recommendedItemPilesSettings();
+
+  await game.settings.set("item-piles", "actorClassType", rec.actorClassType);
+  await game.settings.set("item-piles", "itemClassLootType", rec.itemClassLootType);
+  await game.settings.set("item-piles", "itemClassWeaponType", rec.itemClassWeaponType);
+  await game.settings.set("item-piles", "itemClassEquipmentType", rec.itemClassEquipmentType);
+  await game.settings.set("item-piles", "itemPriceAttribute", rec.itemPriceAttribute);
+  await game.settings.set("item-piles", "itemQuantityAttribute", rec.itemQuantityAttribute);
+  await game.settings.set("item-piles", "currencies", rec.currencies);
+  await game.settings.set("item-piles", "unstackableItemTypes", rec.unstackableItemTypes);
+  await game.settings.set("item-piles", "itemFilters", rec.itemFilters);
+  await game.settings.set("item-piles", "itemSimilarities", rec.itemSimilarities);
+
+  // Optional integration (non-critical)
+  if (game.itempiles?.API?.addSystemIntegration) {
+    try {
+      game.itempiles.API.addSystemIntegration(
+        {
+          VERSION: "1.0.0",
+          ACTOR_CLASS_TYPE: rec.actorClassType,
+          ITEM_CLASS_LOOT_TYPE: rec.itemClassLootType,
+          ITEM_CLASS_WEAPON_TYPE: rec.itemClassWeaponType,
+          ITEM_CLASS_EQUIPMENT_TYPE: rec.itemClassEquipmentType,
+          ITEM_PRICE_ATTRIBUTE: rec.itemPriceAttribute,
+          ITEM_QUANTITY_ATTRIBUTE: rec.itemQuantityAttribute,
+          ITEM_FILTERS: rec.itemFilters,
+          ITEM_SIMILARITIES: rec.itemSimilarities,
+          CURRENCIES: rec.currencies,
+          UNSTACKABLE_ITEM_TYPES: rec.unstackableItemTypes
+        },
+        "latest"
+      );
+    } catch (e) {
+      console.warn("Item Piles: Conan 2d20 | addSystemIntegration failed (non-critical):", e);
+    }
+  }
+
+  await setSettingSafe("setupDone", true);
+}
+
+async function applyTypeFiltersOnly() {
+  if (game.system.id !== "conan2d20") return;
+  if (!game.settings?.settings?.has("item-piles.itemFilters")) return;
+
+  const allowedTypes = getAllowedTypes();
+  const excludedTypes = buildItemFilterExclusions(allowedTypes);
+
+  await game.settings.set("item-piles", "itemFilters", buildItemFiltersSettingValue(excludedTypes));
+
+  // Ensure sorcery items never stack if enabled
+  const unstackable = new Set(game.settings.get("item-piles", "unstackableItemTypes") ?? []);
+  unstackable.add("spell");
+  unstackable.add("enchantment");
+  await game.settings.set("item-piles", "unstackableItemTypes", Array.from(unstackable));
 }
 
 Hooks.once("init", () => {
-  game.settings.register(MODULE_ID, "showReach1", {
-    name: "Show Reach 1 Icon",
-    hint: "If disabled, Reach 1 will not be applied automatically (reduces on-screen clutter).",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: true,
-    onChange: () => {
-      if (!canvas?.ready) return;
-      for (const token of canvas.tokens.placeables) {
-        const actor = token.actor;
-        if (actor && isAuthoritativeForActor(actor)) scheduleReach(actor, { immediate: true });
-      }
-    }
-  });
-
-  const effects = buildStatusEffects();
-  const existingIds = new Set((CONFIG.statusEffects ?? []).map(e => e.id));
-  CONFIG.statusEffects = (CONFIG.statusEffects ?? []).concat(
-    effects.filter(e => !existingIds.has(e.id))
-  );
-});
-
-function effectHasStatus(effect, statusId) {
-  const statuses = effect?.statuses ?? effect?._source?.statuses;
-  if (!statuses) return false;
-  if (statuses instanceof Set) return statuses.has(statusId);
-  if (Array.isArray(statuses)) return statuses.includes(statusId);
-  return false;
-}
-
-function actorHasStatus(actor, statusId) {
-  return actor.effects.some(e => !e.disabled && effectHasStatus(e, statusId));
-}
-
-async function applyExclusiveStatus(actor, activeId) {
-  if (!actor) return;
-
-  _enforcingExclusivity = true;
   try {
-    for (const id of ALL_STATUS_IDS) {
-      await actor.toggleStatusEffect(id, { active: id === activeId });
-    }
-  } finally {
-    _enforcingExclusivity = false;
-  }
+    console.log("Item Piles: Conan 2d20 | init START");
 
-  rerenderTokenHUD();
-}
+    // Hidden flag to avoid overwriting manual Item Piles settings after first setup
+    game.settings.register(MODULE_ID, "setupDone", {
+      name: "Setup applied",
+      hint: "Internal flag to prevent overwriting manual Item Piles settings after the initial setup.",
+      scope: "world",
+      config: false,
+      type: Boolean,
+      default: false
+    });
 
-function getFlagDocument(actor) {
-  if (actor?.isToken && actor?.token?.document) return actor.token.document;
-  return actor;
-}
+    // Sorcery trade controls (disabled by default)
+    // These are NOT stackable, and must be priced manually per merchant item configuration.
+    game.settings.register(MODULE_ID, "allowSpellTrade", {
+      name: "Allow trading Spells (Sorcery)",
+      hint:
+        "If enabled, Spell items can be used in Item Piles trade/merchant flows. " +
+        "Spells are treated as non-stackable, and you must set their prices manually in the merchant item configuration.",
+      scope: "world",
+      config: true,
+      type: Boolean,
+      default: false,
+      onChange: () => applyTypeFiltersOnly()
+    });
 
-function getManualFlags(actor) {
-  const doc = getFlagDocument(actor);
-  return {
-    manualId: doc?.getFlag(MODULE_ID, FLAG_MANUAL_STATUS),
-    marker: doc?.getFlag(MODULE_ID, FLAG_MANUAL_MARKER)
-  };
-}
+    game.settings.register(MODULE_ID, "allowEnchantmentTrade", {
+      name: "Allow trading Enchantments (Alchemy)",
+      hint:
+        "If enabled, Enchantment items can be used in Item Piles trade/merchant flows. " +
+        "Enchantments are treated as non-stackable, and you must set their prices manually in the merchant item configuration.",
+      scope: "world",
+      config: true,
+      type: Boolean,
+      default: false,
+      onChange: () => applyTypeFiltersOnly()
+    });
 
-async function setManualFlags(actor, manualId) {
-  const doc = getFlagDocument(actor);
-  await doc.update({
-    [`flags.${MODULE_ID}.${FLAG_MANUAL_STATUS}`]: manualId,
-    [`flags.${MODULE_ID}.${FLAG_MANUAL_MARKER}`]: true
-  });
-}
+    // World Settings -> Menu
+    game.settings.registerMenu(MODULE_ID, "resetRecommended", {
+      name: "Reset recommended settings",
+      hint: "Re-apply the recommended Item Piles configuration for Conan 2d20.",
+      label: "Open Reset Configuration",
+      icon: "fas fa-rotate-left",
+      restricted: true,
+      type: class ResetMenu extends foundry.applications.api.ApplicationV2 {
+        async render() {
+          const allowSpell = game.settings.get(MODULE_ID, "allowSpellTrade");
+          const allowEnchantment = game.settings.get(MODULE_ID, "allowEnchantmentTrade");
+          const allowAnyMagic = allowSpell || allowEnchantment;
+          const html =
+            `<p>This will re-apply the recommended Item Piles settings for Conan 2d20 (currency, item attributes, and pile actor type).</p>` +
+            `<p><strong>Note:</strong> This overwrites your current Item Piles settings.</p>` +
+            (allowAnyMagic
+              ? `<p><em>Sorcery trade is enabled.</em> Spells/Enchantments are intended to be priced manually per merchant item configuration and will never stack.</p>`
+              : "");
 
-async function clearManualFlags(actor) {
-  const doc = getFlagDocument(actor);
-  await doc.update({
-    [`flags.${MODULE_ID}.${FLAG_MANUAL_STATUS}`]: null,
-    [`flags.${MODULE_ID}.${FLAG_MANUAL_MARKER}`]: null
-  });
-}
+          new Dialog({
+            title: "Item Piles: Conan 2d20 | Reset configuration",
+            content: html,
+            buttons: {
+              cancel: { label: "Cancel" },
+              reset: {
+                label: "Reset",
+                callback: async () => {
+                  await applyRecommendedSettings({ force: true });
+                  ui.notifications.info("Item Piles: Conan 2d20 | Recommended configuration has been re-applied.");
+                }
+              }
+            },
+            default: "cancel"
+          }).render(true);
 
-function isEquippedWeapon(item) {
-  if (item.type !== "weapon") return false;
-  const equipped =
-    item.system?.equipped ??
-    item.system?.isEquipped ??
-    item.system?.equippedWeapon;
-  return equipped === true;
-}
-
-function getPcReach(actor) {
-  const weapons = actor.items.filter(isEquippedWeapon);
-  if (!weapons.length) return 0;
-  return Math.max(...weapons.map(w => Number(w.system?.range ?? 0) || 0), 0);
-}
-
-function getNpcReach(actor) {
-  const allowedTypes = new Set(["npcattack", "weapon"]);
-  const candidates = actor.items.filter(i => allowedTypes.has(i.type));
-  if (!candidates.length) return 0;
-  const reaches = candidates
-    .map(i => Number(i.system?.range ?? 0) || 0)
-    .filter(n => n > 0);
-  return reaches.length ? Math.max(...reaches) : 0;
-}
-
-async function redrawActorTokenEffects(actor) {
-  if (!canvas?.ready || typeof actor.getActiveTokens !== "function") return;
-  for (const token of actor.getActiveTokens()) await token.drawEffects();
-}
-
-async function reconcileManualOverride(actor) {
-  if (actor.type !== "npc") return;
-  const { manualId, marker } = getManualFlags(actor);
-  if (marker !== true || !manualId) return;
-  if (!ALL_STATUS_IDS.includes(manualId) || !actorHasStatus(actor, manualId)) {
-    await clearManualFlags(actor);
-  }
-}
-
-async function setReachStatus(actor) {
-  if (!actor || !isAuthoritativeForActor(actor)) return;
-
-  if (actor.type === "npc") await reconcileManualOverride(actor);
-  if (actorHasStatus(actor, NO_REACH_ID)) {
-    await applyExclusiveStatus(actor, NO_REACH_ID);
-    await redrawActorTokenEffects(actor);
-    return;
-  }
-
-  const showReach1 = game.settings.get(MODULE_ID, "showReach1");
-  if (actor.type === "npc") {
-    const { manualId, marker } = getManualFlags(actor);
-    if (marker === true && manualId && ALL_STATUS_IDS.includes(manualId)) {
-      await applyExclusiveStatus(actor, manualId);
-      await redrawActorTokenEffects(actor);
-      return;
-    }
-  }
-
-  // Automatic computation
-  const reachValue = (actor.type === "npc") ? getNpcReach(actor) : getPcReach(actor);
-  const reach = clampNumber(reachValue, 0, MAX_REACH);
-
-  let targetId = null;
-  if (reach === 1 && showReach1) targetId = "conan-reach-1";
-  else if (reach >= 2) targetId = `conan-reach-${reach}`;
-  else targetId = null;
-
-  await applyExclusiveStatus(actor, targetId);
-  await redrawActorTokenEffects(actor);
-}
-/** Schedule a Reach recomputation for an Actor. */
-function scheduleReach(actor, { immediate = false } = {}) {
-  if (!actor) return;
-  const key = actor.uuid ?? actor.id ?? actor._id;
-  if (!key) return;
-
-  if (immediate) {
-    setReachStatus(actor);
-    return;
-  }
-
-  if (!_debouncers.has(key)) {
-    _debouncers.set(key, foundry.utils.debounce(() => setReachStatus(actor), 100));
-  }
-  _debouncers.get(key)();
-}
-
-function shouldRecomputeForItem(item) {
-  return item?.type === "weapon" || item?.type === "npcattack";
-}
-
-Hooks.on("updateItem", (item) => {
-  const actor = item.parent;
-  if (actor && shouldRecomputeForItem(item)) scheduleReach(actor);
-});
-Hooks.on("createItem", (item) => {
-  const actor = item.parent;
-  if (actor && shouldRecomputeForItem(item)) scheduleReach(actor);
-});
-Hooks.on("deleteItem", (item) => {
-  const actor = item.parent;
-  if (actor && shouldRecomputeForItem(item)) scheduleReach(actor);
-});
-
-Hooks.on("createToken", (tokenDoc) => {
-  const actor = tokenDoc?.actor;
-  if (actor) scheduleReach(actor);
-});
-Hooks.on("updateToken", (tokenDoc) => {
-  const actor = tokenDoc?.actor;
-  if (actor) scheduleReach(actor);
-});
-
-Hooks.on("renderTokenHUD", (hud, html) => {
-  const actor = hud?.object?.actor;
-  if (!actor) return;
-
-  const root = html instanceof HTMLElement ? html : html?.[0];
-  if (!root) return;
-
-  const allowReachHud = game.user.isGM && actor.type === "npc";
-
-  if (!allowReachHud) {
-    for (const id of REACH_IDS) {
-      root.querySelectorAll(`[data-status-id="${id}"]`).forEach(el => el.remove());
-    }
-    return;
-  }
-
-  root.querySelectorAll(`[data-status-id]`).forEach(el => {
-    const statusId = el.getAttribute("data-status-id");
-    if (!ALL_STATUS_IDS.includes(statusId)) return;
-
-    if (el.dataset.reachBound === "1") return;
-    el.dataset.reachBound = "1";
-
-    el.addEventListener("click", async (ev) => {
-      try {
-        ev.preventDefault();
-        ev.stopPropagation();
-        if (_enforcingExclusivity) return;
-        if (!isAuthoritativeForActor(actor)) return;
-
-        const currentlyActive = actorHasStatus(actor, statusId);
-
-        if (currentlyActive) {
-          await applyExclusiveStatus(actor, null);
-          await clearManualFlags(actor);
-          await redrawActorTokenEffects(actor);
-          scheduleReach(actor);
-          return;
+          // Do not render an app window
+          return this.close();
         }
-
-        await applyExclusiveStatus(actor, statusId);
-
-        if (statusId !== NO_REACH_ID) await setManualFlags(actor, statusId);
-        else await clearManualFlags(actor);
-
-        await redrawActorTokenEffects(actor);
-      } catch (err) {
-        console.error(`${MODULE_ID} | HUD click handler error`, err);
       }
-    }, { capture: true });
-  });
-});
+    });
 
-Hooks.on("createActiveEffect", (effect) => {
-  if (_enforcingExclusivity) return;
-
-  const actor = effect.parent;
-  if (!actor || actor.documentName !== "Actor") return;
-  if (!isAuthoritativeForActor(actor)) return;
-
-  const addedId = ALL_STATUS_IDS.find(id => effectHasStatus(effect, id));
-  if (!addedId) return;
-
-  // Re-evaluate immediately so that enabling "No Reach" removes any Reach status,
-  // and enabling Reach statuses respects module rules.
-  scheduleReach(actor, { immediate: true });
-});
-
-Hooks.on("deleteActiveEffect", async (effect) => {
-  if (_enforcingExclusivity) return;
-
-  const actor = effect.parent;
-  if (!actor || actor.documentName !== "Actor") return;
-  if (!isAuthoritativeForActor(actor)) return;
-
-  const removedId = ALL_STATUS_IDS.find(id => effectHasStatus(effect, id));
-  if (!removedId) return;
-
-  // If an NPC manual override effect was removed outside the HUD, clear the stored override.
-  if (actor.type === "npc") {
-    const { manualId, marker } = getManualFlags(actor);
-    if (marker === true && manualId === removedId) {
-      await clearManualFlags(actor);
-    }
+    console.log("Item Piles: Conan 2d20 | init END");
+  } catch (e) {
+    console.error("Item Piles: Conan 2d20 | init FAILED", e);
   }
-
-  // Re-evaluate immediately so that disabling "No Reach" restores automatic Reach.
-  scheduleReach(actor, { immediate: true });
 });
 
-Hooks.on("canvasReady", () => {
-  for (const token of canvas.tokens.placeables) {
-    const actor = token.actor;
-    if (actor) scheduleReach(actor);
-  }
+// One-time setup after everything is ready
+Hooks.once("ready", async () => {
+  await applyRecommendedSettings({ force: false });
+  console.log("Item Piles: Conan 2d20 | ready");
 });

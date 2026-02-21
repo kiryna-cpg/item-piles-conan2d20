@@ -1,8 +1,8 @@
 {
   "id": "conan2d20-reach-status",
   "title": "Conan 2d20 - Reach Status",
-  "description": "Small module that displays Reach status effects (Reach 1–3) on tokens based on equipped weapons (PCs) or available attacks (NPCs), with a manual 'No Reach' status.",
-  "version": "0.0.4",
+  "description": "Small module that adds Reach Status to an Actor (automatic when weapons with Reach 1-3 are equipped, manual for No Reach).",
+  "version": "0.0.2",
   "authors": [
     {
       "name": "Kiryna"
@@ -25,7 +25,7 @@
   ],
   "url": "https://github.com/kiryna-cpg/conan2d20-reach-status",
   "manifest": "https://raw.githubusercontent.com/kiryna-cpg/conan2d20-reach-status/main/module.json",
-  "download": "https://github.com/kiryna-cpg/conan2d20-reach-status/releases/download/0.0.4/conan2d20-reach-status.zip",
+  "download": "https://github.com/kiryna-cpg/conan2d20-reach-status/releases/download/0.0.2/conan2d20-reach-status.zip",
   "bugs": "https://github.com/kiryna-cpg/conan2d20-reach-status/issues",
   "license": "MIT"
 }
