@@ -1,8 +1,15 @@
 {
+<<<<<<< HEAD
   "id": "conan2d20-reach-status",
   "title": "Conan 2d20 - Reach Status",
   "description": "Small module that adds Reach Status to an Actor (automatic when weapons with Reach 1-3 are equipped, manual for No Reach).",
   "version": "0.0.2",
+=======
+  "id": "item-piles-conan2d20",
+  "title": "Item Piles: Conan 2d20",
+  "description": "Companion module that configures Item Piles for Robert E. Howard's Conan: Adventures in an Age Undreamed Of (2d20).",
+  "version": "0.0.7",
+>>>>>>> 64885eb (WIP estado actual local)
   "authors": [
     {
       "name": "Kiryna"
@@ -15,6 +22,13 @@
   "relationships": {
     "requires": [
       {
+<<<<<<< HEAD
+=======
+        "id": "item-piles",
+        "type": "module"
+      },
+      {
+>>>>>>> 64885eb (WIP estado actual local)
         "id": "conan2d20",
         "type": "system"
       }
@@ -23,9 +37,18 @@
   "esmodules": [
     "module.js"
   ],
+<<<<<<< HEAD
   "url": "https://github.com/kiryna-cpg/conan2d20-reach-status",
   "manifest": "https://raw.githubusercontent.com/kiryna-cpg/conan2d20-reach-status/main/module.json",
   "download": "https://github.com/kiryna-cpg/conan2d20-reach-status/releases/download/0.0.2/conan2d20-reach-status.zip",
   "bugs": "https://github.com/kiryna-cpg/conan2d20-reach-status/issues",
   "license": "MIT"
 }
+=======
+  "url": "https://github.com/kiryna-cpg/item-piles-conan2d20",
+  "manifest": "https://raw.githubusercontent.com/kiryna-cpg/item-piles-conan2d20/main/module.json",
+  "download": "https://github.com/kiryna-cpg/item-piles-conan2d20/releases/download/0.0.7/item-piles-conan2d20.zip",
+  "bugs": "https://github.com/kiryna-cpg/item-piles-conan2d20/issues",
+  "license": "MIT"
+}
+>>>>>>> 64885eb (WIP estado actual local)
