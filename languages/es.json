@@ -1,0 +1,42 @@
+{
+  "item-piles-conan2d20": {
+    "Currency": {
+      "GoldPieces": "Piezas de oro"
+    },
+    "Menu": {
+      "ResetRecommended": {
+        "Hint": "Vuelve a aplicar la configuración recomendada de Item Piles para Conan 2d20.",
+        "Label": "Abrir configuración de reinicio",
+        "Name": "Restablecer ajustes recomendados"
+      }
+    },
+    "Notification": {
+      "ConfigMismatchReapplied": "Item Piles: Conan 2d20 ha detectado que Item Piles no está configurado correctamente y ha vuelto a aplicar los valores recomendados.",
+      "ItemPilesNotReady": "Item Piles: Conan 2d20 no ha encontrado los ajustes requeridos de Item Piles. Asegúrate de que Item Piles está activo y recarga el mundo.",
+      "ResetComplete": "La configuración recomendada de Item Piles: Conan 2d20 se ha vuelto a aplicar.",
+      "SetupFailed": "Item Piles: Conan 2d20 v{version} no ha podido aplicar su configuración recomendada. Revisa la consola para más detalles."
+    },
+    "ResetDialog": {
+      "Cancel": "Cancelar",
+      "Content": "Esto volverá a aplicar los ajustes recomendados de Item Piles para Conan 2d20, incluyendo moneda, atributos de objetos, filtros y tipo de actor de pila.",
+      "Reset": "Restablecer",
+      "SorceryEnabled": "El comercio de hechicería está activado. Los Hechizos y Encantamientos deben tener precio manual en la configuración de objeto del mercader y nunca se apilarán.",
+      "Title": "Item Piles: Conan 2d20 | Restablecer configuración",
+      "Warning": "Esto sobrescribe tus ajustes actuales de Item Piles."
+    },
+    "Setting": {
+      "AllowEnchantmentTrade": {
+        "Hint": "Si está activado, los Encantamientos podrán usarse en los flujos de comercio y mercaderes de Item Piles. Los Encantamientos se tratan como no apilables y debes fijar su precio manualmente en la configuración de objeto del mercader.",
+        "Name": "Permitir comerciar Encantamientos (Alquimia)"
+      },
+      "AllowSpellTrade": {
+        "Hint": "Si está activado, los Hechizos podrán usarse en los flujos de comercio y mercaderes de Item Piles. Los Hechizos se tratan como no apilables y debes fijar su precio manualmente en la configuración de objeto del mercader.",
+        "Name": "Permitir comerciar Hechizos (Hechicería)"
+      },
+      "SetupDone": {
+        "Hint": "Marca interna para evitar que la configuración recomendada de Item Piles se aplique repetidamente.",
+        "Name": "Configuración aplicada"
+      }
+    }
+  }
+}

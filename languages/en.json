@@ -1,0 +1,42 @@
+{
+  "item-piles-conan2d20": {
+    "Currency": {
+      "GoldPieces": "Gold Pieces"
+    },
+    "Menu": {
+      "ResetRecommended": {
+        "Hint": "Re-apply the recommended Item Piles configuration for Conan 2d20.",
+        "Label": "Open Reset Configuration",
+        "Name": "Reset recommended settings"
+      }
+    },
+    "Notification": {
+      "ConfigMismatchReapplied": "Item Piles: Conan 2d20 detected that Item Piles is not configured correctly and re-applied the recommended defaults.",
+      "ItemPilesNotReady": "Item Piles: Conan 2d20 could not find the required Item Piles settings. Make sure Item Piles is active and reload the world.",
+      "ResetComplete": "Item Piles: Conan 2d20 recommended configuration has been re-applied.",
+      "SetupFailed": "Item Piles: Conan 2d20 v{version} could not apply its recommended configuration. Check the console for details."
+    },
+    "ResetDialog": {
+      "Cancel": "Cancel",
+      "Content": "This will re-apply the recommended Item Piles settings for Conan 2d20, including currency, item attributes, filters, and pile actor type.",
+      "Reset": "Reset",
+      "SorceryEnabled": "Sorcery trade is enabled. Spells and Enchantments are intended to be priced manually per merchant item configuration and will never stack.",
+      "Title": "Item Piles: Conan 2d20 | Reset configuration",
+      "Warning": "This overwrites your current Item Piles settings."
+    },
+    "Setting": {
+      "AllowEnchantmentTrade": {
+        "Hint": "If enabled, Enchantment items can be used in Item Piles trade and merchant flows. Enchantments are treated as non-stackable, and you must set their prices manually in the merchant item configuration.",
+        "Name": "Allow trading Enchantments (Alchemy)"
+      },
+      "AllowSpellTrade": {
+        "Hint": "If enabled, Spell items can be used in Item Piles trade and merchant flows. Spells are treated as non-stackable, and you must set their prices manually in the merchant item configuration.",
+        "Name": "Allow trading Spells (Sorcery)"
+      },
+      "SetupDone": {
+        "Hint": "Internal flag to prevent repeatedly applying the recommended Item Piles configuration.",
+        "Name": "Setup applied"
+      }
+    }
+  }
+}

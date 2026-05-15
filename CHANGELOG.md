@@ -2,20 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.0.7] - 2026-02-13
-### Fixed
-- If this world has previously been set up by the companion but Item Piles settings were later reset/changed, the companion now detects the mismatch on load and automatically re-applies the recommended defaults (with a warning notification).
-
-## [0.0.2] - 2026-02-12
-### Added
-- Manifest + release download support for Foundry installation.
-- World Settings menu: “Reset Recommended Settings”.
-- Safe one-time setup (does not overwrite manual Item Piles settings after initial setup).
-
+## [0.0.9] - 2026-05-15
 ### Changed
-- Uses attribute currency configuration for Pepitas: `system.pips.value`.
-- Default configuration tuned for slot-based inventory (no stacking).
+- Updated compatibility for Foundry VTT v14, Conan 2d20 system 2.5.0, and Item Piles 3.3.1.
+- Updated manifest download, README, and changelog links for the v14 release.
+- Normalized Conan system compatibility under `relationships.systems`.
 
-## [0.0.1] - 2026-02-12
+### Fixed
+- Fixed module setting localization so Foundry displays translated labels instead of raw i18n keys.
+- Replaced the reset confirmation dialog with `DialogV2`.
+- Limited world-scoped Item Piles setting writes to GM users.
+
+## [0.0.8]
 ### Added
-- Initial companion module with Mausritter-specific Item Piles settings.
+- Conan-specific Item Piles defaults for currency, price, quantity, filters, and trade settings.
